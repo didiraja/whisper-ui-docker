@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Whisper UI</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+    <script src="{{ url_for('static', path='/app.js') }}" defer></script>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="page-header">
+        <p class="eyebrow">Private by default</p>
+        <h1>Whisper UI</h1>
+        <p>Local transcription with WhisperX</p>
+      </header>
+
+      <form id="transcription-form" class="card">
+        <fieldset class="source-tabs">
+          <legend>Source</legend>
+          <div class="tab-options">
+            <label><input id="source-youtube" type="radio" name="source_kind" value="youtube" checked> YouTube</label>
+            <label><input id="source-upload" type="radio" name="source_kind" value="upload"> Audio file</label>
+          </div>
+        </fieldset>
+
+        <div id="youtube-panel">
+          <label for="youtube-url">YouTube URL</label>
+          <input id="youtube-url" name="youtube_url" type="url" placeholder="https://www.youtube.com/watch?v=…">
+          <p class="help-text">Enter one public YouTube video URL.</p>
+        </div>
+
+        <div id="upload-panel" hidden>
+          <div id="upload-drop-zone" class="upload-drop-zone" aria-disabled="true">
+            <label for="audio-file">Drop an MP3 or WAV here, or choose a file</label>
+            <input id="audio-file" name="audio_file" type="file" accept=".mp3,.wav,audio/mpeg,audio/wav" aria-describedby="file-selection upload-help" disabled>
+            <p id="file-selection" class="file-selection" aria-live="polite">No file selected</p>
+          </div>
+          <p id="upload-help" class="help-text">MP3 or WAV, up to {{ max_upload_mb }} MB and {{ "%g"|format(max_duration_hours) }} hours</p>
+        </div>
+
+        <div class="option-grid">
+          <div>
+            <label for="model">Model</label>
+            <select id="model" name="model">
+              {% for item in models %}<option value="{{ item }}" {% if item == default_model %}selected{% endif %}>{{ item }}</option>{% endfor %}
+            </select>
+          </div>
+          <div>
+            <label for="language">Language</label>
+            <select id="language" name="language">
+              <option value="">Auto-detect</option>
+              {% for code, name in languages %}<option value="{{ code }}" {% if code == default_language %}selected{% endif %}>{{ "Portuguese (Brazil)" if code == "pt" else name|title }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <button id="transcribe" class="primary-action" type="submit">Transcribe</button>
+      </form>
+
+      <p id="form-error" class="alert" role="alert" aria-live="polite" hidden></p>
+
+      <section id="job-panel" class="card status-card" aria-live="polite" hidden>
+        <p class="section-label">Current job</p>
+        <p id="job-stage" class="job-stage"></p>
+        <p id="job-warning" class="warning"></p>
+      </section>
+
+      <section id="result-panel" class="card" hidden>
+        <label for="transcript">Transcript</label>
+        <textarea id="transcript" readonly></textarea>
+        <div class="actions">
+          <button id="copy-transcript" type="button">Copy</button>
+          <a id="download-txt" role="button">Download TXT</a>
+          <a id="download-srt" role="button">Download SRT</a>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

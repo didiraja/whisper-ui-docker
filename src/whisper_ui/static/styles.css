@@ -1,0 +1,183 @@
+:root {
+  color-scheme: light;
+  --space: 1rem;
+  --radius: .75rem;
+  --accent: #4f46e5;
+  --accent-dark: #3730a3;
+  --border: #d9deea;
+  --muted: #5f6b85;
+  --surface: #fff;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+  background: #f5f7fb;
+  color: #172033;
+}
+
+.shell {
+  width: min(100% - 2rem, 50rem);
+  margin: 3rem auto;
+}
+
+.page-header { margin-bottom: 1.5rem; }
+.page-header h1 { margin: 0; font-size: clamp(2rem, 6vw, 3.25rem); line-height: 1.1; }
+.page-header p { margin: .5rem 0 0; color: var(--muted); }
+.page-header .eyebrow { margin: 0 0 .4rem; color: var(--accent-dark); font-size: .8rem; font-weight: 750; letter-spacing: .09em; text-transform: uppercase; }
+
+.card {
+  margin-block: var(--space);
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 .75rem 2rem rgba(31, 42, 68, .06);
+}
+
+label, legend { font-weight: 650; }
+
+input, select, textarea, button, a[role="button"] { font: inherit; }
+
+input, select, textarea {
+  width: 100%;
+  margin-block: .35rem 1rem;
+  padding: .75rem;
+  border: 1px solid #aeb7ca;
+  border-radius: .5rem;
+  background: #fff;
+  color: inherit;
+}
+
+button, a[role="button"] {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: .65rem 1rem;
+  border: 1px solid var(--accent);
+  border-radius: .5rem;
+  background: #fff;
+  color: var(--accent-dark);
+  cursor: pointer;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+button:hover, a[role="button"]:hover { background: #eef2ff; }
+button:disabled { cursor: wait; opacity: .65; }
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #a5b4fc;
+  outline-offset: 2px;
+}
+
+.source-tabs {
+  margin: 0 0 1.25rem;
+  padding: 0;
+  border: 0;
+}
+
+.source-tabs legend { margin-bottom: .5rem; }
+
+.tab-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .65rem;
+}
+
+.tab-options label {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  padding: .8rem;
+  border: 1px solid var(--border);
+  border-radius: .6rem;
+  cursor: pointer;
+}
+
+.tab-options label:has(input:checked) {
+  border-color: var(--accent);
+  background: #eef2ff;
+  color: var(--accent-dark);
+}
+
+.tab-options input { width: auto; margin: 0; accent-color: var(--accent); }
+
+.help-text {
+  margin: -.65rem 0 1.25rem;
+  color: var(--muted);
+  font-size: .9rem;
+}
+
+.upload-drop-zone {
+  margin-block: .35rem 1rem;
+  padding: 1rem;
+  border: 2px dashed #aeb7ca;
+  border-radius: .6rem;
+  background: #fafbff;
+  transition: border-color .15s ease, background-color .15s ease;
+}
+
+.upload-drop-zone.is-dragging {
+  border-color: var(--accent);
+  background: #eef2ff;
+}
+
+.upload-drop-zone.is-disabled { opacity: .65; }
+.upload-drop-zone input { margin-bottom: .4rem; }
+.file-selection { margin: 0; color: var(--muted); font-size: .9rem; }
+
+#upload-panel > .help-text { margin-top: -.65rem; }
+
+.option-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.primary-action {
+  width: 100%;
+  background: var(--accent);
+  color: #fff;
+}
+
+.primary-action:hover { background: var(--accent-dark); }
+
+.status-card { border-left: .3rem solid var(--accent); }
+.section-label { margin: 0; color: var(--muted); font-size: .8rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.job-stage { margin: .3rem 0 0; font-size: 1.15rem; font-weight: 700; }
+.warning { margin: .75rem 0 0; color: #854d0e; }
+
+textarea {
+  min-height: 18rem;
+  resize: vertical;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem;
+}
+
+.alert {
+  padding: .75rem 1rem;
+  border-left: .3rem solid #b42318;
+  background: #fee4e2;
+  color: #7a271a;
+}
+
+[hidden] { display: none !important; }
+
+@media (max-width: 36rem) {
+  .shell { margin-block: 1rem; }
+  .tab-options, .option-grid { grid-template-columns: 1fr; }
+  .actions > * { width: 100%; }
+}

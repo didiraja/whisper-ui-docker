@@ -10,6 +10,12 @@ const fileSelection = document.querySelector("#file-selection");
 const formError = document.querySelector("#form-error");
 const jobPanel = document.querySelector("#job-panel");
 const jobStage = document.querySelector("#job-stage");
+const jobPipeline = document.querySelector("#job-pipeline");
+const jobStepper = document.querySelector("#job-stepper");
+const jobElapsed = document.querySelector("#job-elapsed");
+const jobRemaining = document.querySelector("#job-remaining");
+const jobProgress = document.querySelector("#job-progress");
+const jobLogLines = document.querySelector("#job-log-lines");
 const jobWarning = document.querySelector("#job-warning");
 const resultPanel = document.querySelector("#result-panel");
 const transcript = document.querySelector("#transcript");
@@ -21,6 +27,18 @@ let requestGeneration = 0;
 let pollFailures = 0;
 const normalPollDelay = 1500;
 const maximumRetryDelay = 10000;
+const stepElements = [...jobStepper.querySelectorAll("li")];
+const stepIndexByStage = {
+  loading_model: 0,
+  transcribing: 1,
+  aligning: 2,
+  formatting: 3,
+  complete: 3,
+};
+const progressLabels = {
+  transcribing: "Transcription progress",
+  aligning: "Alignment progress",
+};
 
 const stageLabels = {
   validating: "Validating input…",
@@ -90,6 +108,96 @@ function clearResult() {
   downloadSrt.removeAttribute("href");
 }
 
+function clearPipeline() {
+  jobPipeline.hidden = true;
+  jobElapsed.textContent = "";
+  jobRemaining.textContent = "";
+  jobProgress.hidden = true;
+  jobProgress.removeAttribute("value");
+  jobLogLines.replaceChildren();
+}
+
+function formatDuration(totalSeconds) {
+  const seconds = Math.max(0, Math.round(totalSeconds));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainder = seconds % 60;
+  if (hours) return `${hours}h ${minutes}m ${remainder}s`;
+  if (minutes) return `${minutes}m ${remainder}s`;
+  return `${remainder}s`;
+}
+
+function renderPipeline(job) {
+  const pipeline = job.pipeline || {};
+  if (!Number.isFinite(pipeline.elapsed_seconds)) {
+    clearPipeline();
+    return;
+  }
+
+  jobPipeline.hidden = false;
+  const currentIndex = stepIndexByStage[job.stage] ?? 0;
+  const progress = Number.isFinite(pipeline.progress_percent)
+    ? pipeline.progress_percent
+    : null;
+
+  for (const [index, step] of stepElements.entries()) {
+    const marker = step.querySelector(".step-marker");
+    const status = step.querySelector(".step-status");
+    const isComplete = job.state === "completed" || index < currentIndex;
+    const isCurrent = !isComplete && index === currentIndex;
+    const isFailed = isCurrent && job.state === "failed";
+    const isFallback = index === 2 && pipeline.alignment_fallback && isComplete;
+    step.classList.toggle("is-complete", isComplete);
+    step.classList.toggle("is-current", isCurrent && !isFailed);
+    step.classList.toggle("is-failed", isFailed);
+    step.classList.toggle("is-warning", isFallback);
+    if (isCurrent && !isFailed) step.setAttribute("aria-current", "step");
+    else step.removeAttribute("aria-current");
+
+    marker.textContent = isFallback
+      ? "!"
+      : (isComplete ? "✓" : (isFailed ? "!" : String(index + 1)));
+    if (isFallback) status.textContent = "Fallback";
+    else if (isComplete) status.textContent = "Done";
+    else if (isFailed) status.textContent = "Stopped";
+    else if (isCurrent && progress !== null) status.textContent = `${Math.round(progress)}%`;
+    else if (isCurrent) status.textContent = "In progress";
+    else status.textContent = "Waiting";
+  }
+
+  const elapsed = formatDuration(pipeline.elapsed_seconds);
+  if (job.state === "completed") jobElapsed.textContent = `Finished in ${elapsed}`;
+  else if (job.state === "failed") jobElapsed.textContent = `Stopped after ${elapsed}`;
+  else jobElapsed.textContent = `Elapsed ${elapsed}`;
+
+  if (job.state === "completed") jobRemaining.textContent = "All steps complete";
+  else if (job.state === "failed") jobRemaining.textContent = "No remaining-time estimate";
+  else if (Number.isFinite(pipeline.estimated_remaining_seconds)) {
+    jobRemaining.textContent = `About ${formatDuration(pipeline.estimated_remaining_seconds)} remaining in this step`;
+  } else {
+    jobRemaining.textContent = "Estimating current step…";
+  }
+
+  const showProgress = job.state === "running" && progress !== null;
+  jobProgress.hidden = !showProgress;
+  if (showProgress) {
+    jobProgress.value = progress;
+    jobProgress.setAttribute(
+      "aria-label",
+      progressLabels[job.stage] || "Current step progress",
+    );
+  } else jobProgress.removeAttribute("value");
+
+  const lines = Array.isArray(pipeline.log_lines)
+    ? pipeline.log_lines.slice(-5)
+    : [];
+  jobLogLines.replaceChildren(...lines.map((line) => {
+    const item = document.createElement("li");
+    item.textContent = line;
+    return item;
+  }));
+}
+
 function schedulePoll(jobId, generation, delay = normalPollDelay) {
   if (!isCurrentFlow(generation)) return;
   stopPolling();
@@ -131,6 +239,7 @@ async function reconcileMissingJob(generation) {
   if (!job) {
     stopPolling();
     clearResult();
+    clearPipeline();
     jobPanel.hidden = false;
     jobStage.textContent = "The previous job is no longer available.";
     jobWarning.textContent = "";
@@ -151,6 +260,7 @@ async function submitJob(event) {
   const generation = beginJobFlow();
   clearError();
   clearResult();
+  clearPipeline();
   jobPanel.hidden = false;
   jobWarning.textContent = "";
   jobWarning.hidden = true;
@@ -179,6 +289,7 @@ async function pollJob(jobId, generation) {
   clearError();
   if (!job) {
     jobPanel.hidden = true;
+    clearPipeline();
     setBusy(false);
     return;
   }
@@ -193,6 +304,7 @@ async function pollJob(jobId, generation) {
 function renderJob(job) {
   jobPanel.hidden = false;
   jobStage.textContent = stageLabels[job.stage] || job.stage;
+  renderPipeline(job);
   jobWarning.textContent = job.warning || "";
   jobWarning.hidden = !job.warning;
   if (job.state === "completed") {

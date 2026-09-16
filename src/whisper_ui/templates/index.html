@@ -60,9 +60,53 @@
 
       <p id="form-error" class="alert" role="alert" aria-live="polite" hidden></p>
 
-      <section id="job-panel" class="card status-card" aria-live="polite" hidden>
+      <section id="job-panel" class="card status-card" hidden>
         <p class="section-label">Current job</p>
-        <p id="job-stage" class="job-stage"></p>
+        <p id="job-stage" class="job-stage" aria-live="polite"></p>
+        <div id="job-pipeline" class="job-pipeline" hidden>
+          <ol id="job-stepper" class="job-stepper" aria-label="Transcription progress">
+            <li data-step="model">
+              <span class="step-marker" aria-hidden="true">1</span>
+              <span class="step-copy">
+                <span class="step-name">Model</span>
+                <span class="step-status">Waiting</span>
+              </span>
+            </li>
+            <li data-step="transcribe">
+              <span class="step-marker" aria-hidden="true">2</span>
+              <span class="step-copy">
+                <span class="step-name">Transcribe</span>
+                <span class="step-status">Waiting</span>
+              </span>
+            </li>
+            <li data-step="align">
+              <span class="step-marker" aria-hidden="true">3</span>
+              <span class="step-copy">
+                <span class="step-name">Align</span>
+                <span class="step-status">Waiting</span>
+              </span>
+            </li>
+            <li data-step="outputs">
+              <span class="step-marker" aria-hidden="true">4</span>
+              <span class="step-copy">
+                <span class="step-name">Outputs</span>
+                <span class="step-status">Waiting</span>
+              </span>
+            </li>
+          </ol>
+
+          <div class="job-timing">
+            <span id="job-elapsed"></span>
+            <span class="timing-separator" aria-hidden="true">·</span>
+            <span id="job-remaining"></span>
+          </div>
+          <progress id="job-progress" max="100" aria-label="Current step progress" hidden></progress>
+
+          <div class="job-log">
+            <p class="section-label">Activity log</p>
+            <ol id="job-log-lines" aria-label="Latest transcription activity"></ol>
+          </div>
+        </div>
         <p id="job-warning" class="warning"></p>
       </section>
 

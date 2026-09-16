@@ -1,4 +1,5 @@
 import logging
+import math
 import shutil
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -31,6 +32,23 @@ logger = logging.getLogger(__name__)
 GENERIC_ERROR = "Transcription failed. Check the container logs for details."
 _ACTIVE = {JobState.ACCEPTED, JobState.RUNNING}
 RETIRED_CLEANUP_BATCH_SIZE = 4
+MAX_LOG_LINES = 5
+_PIPELINE_STAGES = {
+    JobStage.LOADING_MODEL,
+    JobStage.TRANSCRIBING,
+    JobStage.ALIGNING,
+    JobStage.FORMATTING,
+}
+_STAGE_LOG_MESSAGES = {
+    JobStage.LOADING_MODEL: "Loading the transcription model.",
+    JobStage.TRANSCRIBING: "Model ready; transcription started.",
+    JobStage.ALIGNING: "Transcription finished; aligning timestamps.",
+    JobStage.FORMATTING: "Preparing output files.",
+}
+_PROGRESS_LOG_LABELS = {
+    JobStage.TRANSCRIBING: "Transcription",
+    JobStage.ALIGNING: "Alignment",
+}
 
 
 class ResultLease:
@@ -220,7 +238,96 @@ class JobManager:
         with self._lock:
             if self._current is not None and self._current.id == job_id:
                 if self._current.state == JobState.RUNNING:
-                    self._current.stage = stage
+                    record = self._current
+                    if record.stage == stage:
+                        return
+                    now = datetime.now(timezone.utc)
+                    record.stage = stage
+                    record.stage_progress_percent = None
+                    record.progress_started_at = None
+                    record.progress_started_percent = None
+                    record.progress_observations = 0
+                    record.logged_progress_percent = None
+                    if stage in _PIPELINE_STAGES:
+                        if record.pipeline_started_at is None:
+                            record.pipeline_started_at = now
+                        record.stage_started_at = now
+                        self._append_log_line(
+                            record, _STAGE_LOG_MESSAGES[stage], now=now
+                        )
+
+    def _set_stage_progress(
+        self, job_id: str, stage: JobStage, percent: float
+    ) -> None:
+        if not math.isfinite(percent):
+            return
+        bounded_percent = min(100.0, max(0.0, percent))
+        now = datetime.now(timezone.utc)
+        with self._lock:
+            if self._current is None or self._current.id != job_id:
+                return
+            record = self._current
+            if record.state != JobState.RUNNING or record.stage != stage:
+                return
+            reported_percent = round(bounded_percent, 1)
+            previous_percent = record.stage_progress_percent
+            record.stage_progress_percent = reported_percent
+            if record.progress_started_at is None:
+                record.progress_started_at = now
+                record.progress_started_percent = reported_percent
+                record.progress_observations = 1
+            elif previous_percent is None or reported_percent > previous_percent:
+                record.progress_observations += 1
+            milestone = min(100, int(bounded_percent // 10) * 10)
+            if (
+                milestone > 0
+                and (
+                    record.logged_progress_percent is None
+                    or milestone > record.logged_progress_percent
+                )
+            ):
+                record.logged_progress_percent = milestone
+                label = _PROGRESS_LOG_LABELS.get(stage)
+                if label is not None:
+                    self._append_log_line(
+                        record,
+                        f"{label} {milestone}% complete.",
+                        now=now,
+                    )
+
+    def _set_alignment_fallback(self, job_id: str) -> None:
+        with self._lock:
+            if self._current is None or self._current.id != job_id:
+                return
+            record = self._current
+            if record.state != JobState.RUNNING:
+                return
+            record.alignment_fallback = True
+            self._append_log_line(
+                record,
+                "Precise alignment unavailable; using transcription timestamps.",
+            )
+
+    @staticmethod
+    def _append_log_line(
+        record: JobRecord, message: str, *, now: datetime | None = None
+    ) -> None:
+        timestamp = now or datetime.now(timezone.utc)
+        elapsed = 0
+        if record.pipeline_started_at is not None:
+            elapsed = max(
+                0, int((timestamp - record.pipeline_started_at).total_seconds())
+            )
+        hours, remainder = divmod(elapsed, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        if hours:
+            clock = f"{hours}:{minutes:02d}:{seconds:02d}"
+        else:
+            clock = f"{minutes:02d}:{seconds:02d}"
+        record.log_lines = (
+            *record.log_lines[-(MAX_LOG_LINES - 1) :],
+            f"[{clock}] {message}",
+        )
 
     def _set_display_name(self, job_id: str, display_name: str) -> None:
         with self._lock:
@@ -235,6 +342,9 @@ class JobManager:
 
             def progress(stage: JobStage) -> None:
                 self._set_stage(job_id, stage)
+
+            def stage_progress(stage: JobStage, percent: float) -> None:
+                self._set_stage_progress(job_id, stage, percent)
 
             source = request.source_path
             if request.source_kind == "youtube":
@@ -261,8 +371,14 @@ class JobManager:
                 source, record.directory / "normalized.wav"
             )
             transcript = self.whisper.transcribe(
-                normalized, request.model, request.language, progress
+                normalized,
+                request.model,
+                request.language,
+                progress,
+                stage_progress,
             )
+            if transcript.alignment_warning:
+                self._set_alignment_fallback(job_id)
             progress(JobStage.FORMATTING)
             plain, text_path, srt_path = write_outputs(
                 record.directory, transcript.segments
@@ -298,6 +414,12 @@ class JobManager:
             record.srt_path = srt_path
             record.detected_language = transcript.language
             record.warning = transcript.alignment_warning
+            finished_at = datetime.now(timezone.utc)
+            record.pipeline_finished_at = finished_at
+            record.stage_progress_percent = 100.0
+            self._append_log_line(
+                record, "Transcription complete.", now=finished_at
+            )
             record.expires_at = self._expiration()
 
     def _fail_running(self, job_id: str, message: str) -> None:
@@ -307,6 +429,10 @@ class JobManager:
                     self._fail(self._current, message)
 
     def _fail(self, record: JobRecord, message: str) -> None:
+        if record.pipeline_started_at is not None:
+            finished_at = datetime.now(timezone.utc)
+            record.pipeline_finished_at = finished_at
+            self._append_log_line(record, "Processing stopped.", now=finished_at)
         record.state = JobState.FAILED
         record.error = message
         record.transcript = None

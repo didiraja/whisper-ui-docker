@@ -9,7 +9,12 @@ import ctranslate2
 from whisperx.utils import LANGUAGES
 
 from whisper_ui.config import MODELS, Settings
-from whisper_ui.domain import JobStage, ProgressCallback, TranscriptResult
+from whisper_ui.domain import (
+    JobStage,
+    ProgressCallback,
+    StageProgressCallback,
+    TranscriptResult,
+)
 from whisper_ui.errors import ConfigError
 
 logger = logging.getLogger(__name__)
@@ -100,6 +105,7 @@ class WhisperService:
         model_name: str,
         language: str | None,
         progress: ProgressCallback,
+        stage_progress: StageProgressCallback,
     ) -> TranscriptResult:
         progress(JobStage.LOADING_MODEL)
         model = self._ensure_model(model_name)
@@ -115,6 +121,9 @@ class WhisperService:
             audio,
             batch_size=self.batch_size,
             language=language,
+            progress_callback=lambda percent: stage_progress(
+                JobStage.TRANSCRIBING, percent
+            ),
         )
         effective_language = result["language"]
         segments = result["segments"]
@@ -136,6 +145,9 @@ class WhisperService:
                 audio,
                 self.device,
                 return_char_alignments=False,
+                progress_callback=lambda percent: stage_progress(
+                    JobStage.ALIGNING, percent
+                ),
             )
             segments = aligned["segments"]
         except Exception:

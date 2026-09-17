@@ -203,7 +203,7 @@ textarea:focus-visible {
   font-weight: 800;
 }
 
-.step-copy { position: relative; z-index: 1; min-width: 0; background: var(--surface); }
+.step-copy { position: relative; z-index: 1; min-width: 0; background: var(--surface); background-color: white; padding: 0px 5px; }
 .step-name, .step-status { display: block; }
 .step-name { color: #344054; font-size: .85rem; font-weight: 750; }
 .step-status { overflow: hidden; font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }

@@ -9,7 +9,7 @@ Whisper UI is a local, single-user web interface for transcribing one audio file
 - Enough disk space for the container image, downloaded model weights, and temporary media. Larger Whisper models require substantially more memory, storage, and processing time.
 - No host Python, FFmpeg, Node.js, or frontend toolchain is required; they are included in the image. Node.js 22.22.0 is pinned because yt-dlp requires Node.js 22 or newer for its enabled JavaScript runtime.
 
-The normal Compose configuration is CPU-capable and publishes the app only on `127.0.0.1:8000`. See [NVIDIA GPU](#nvidia-gpu) for GPU requirements.
+The Compose configuration runs transcription on the CPU and publishes the app only on `127.0.0.1:8000`.
 
 ## Quick Start
 
@@ -48,7 +48,7 @@ services:
     environment:
       MAX_UPLOAD_MB: "250"
       DEFAULT_MODEL: "tiny"
-      DEVICE: "cpu"
+      COMPUTE_TYPE: "int8"
 ```
 
 Compose merges that file automatically for ordinary `docker compose` commands. Recreate the service after changing configuration:
@@ -57,7 +57,7 @@ Compose merges that file automatically for ordinary `docker compose` commands. R
 docker compose up -d --build --force-recreate
 ```
 
-Every application setting is listed below. Positive numeric settings reject zero and negative values. `DEFAULT_MODEL` and `DEVICE` are also restricted to the listed values. Startup rejects an unknown default language and a compute type unsupported by the installed CTranslate2 build on the resolved device; this does not download a model.
+Every application setting is listed below. Positive numeric settings reject zero and negative values. `DEFAULT_MODEL` is restricted to the listed values. Startup rejects an unknown default language and a compute type unsupported by the installed CPU CTranslate2 build; this does not download a model.
 
 | Variable | Default | Units / values | Effect |
 | --- | --- | --- | --- |
@@ -68,34 +68,11 @@ Every application setting is listed below. Positive numeric settings reject zero
 | `DEFAULT_LANGUAGE` | `pt` | WhisperX language code | Language initially selected in the page; `pt` is displayed as Portuguese (Brazil). Users may select Auto-detect per job. |
 | `MODEL_CACHE_DIR` | `/models` | container directory | Root the app passes directly to WhisperX for ASR (`whisper/`) and alignment (`alignment/`) caches. The container's auxiliary Hugging Face/Torch cache variables and Compose volume target are configured separately. |
 | `JOBS_DIR` | `/tmp/whisper-ui` | container directory | Ephemeral working directory for the one current job's upload/download and results. It is not host-mounted by the supplied Compose file. |
-| `DEVICE` | `auto` | `auto`, `cpu`, or `cuda` | Selects compute hardware. At startup, `auto` uses CUDA only when PyTorch reports it available, otherwise CPU; `cuda` requires CUDA at startup. There is no later automatic CPU retry. |
-| `CPU_COMPUTE_TYPE` | `int8` | CTranslate2 compute-type string | Numeric compute type used when the resolved device is CPU. |
-| `CUDA_COMPUTE_TYPE` | `float16` | CTranslate2 compute-type string | Numeric compute type used when the resolved device is CUDA. |
-| `CPU_BATCH_SIZE` | `4` | segments per transcription batch | WhisperX transcription batch size on CPU. Reduce it if memory is constrained. |
-| `CUDA_BATCH_SIZE` | `16` | segments per transcription batch | WhisperX transcription batch size on CUDA. Reduce it after a GPU out-of-memory error. |
+| `COMPUTE_TYPE` | `int8` | CTranslate2 compute-type string | Numeric compute type used for CPU transcription. |
+| `BATCH_SIZE` | `4` | segments per transcription batch | WhisperX transcription batch size. Reduce it if memory is constrained. |
 | `CLEANUP_INTERVAL_SECONDS` | `60` | seconds | Interval between checks that remove an expired terminal job and its result directory. |
 
 The image intentionally runs one Uvicorn worker. Multiple workers are unsupported because each worker would have independent in-memory job state and could start a separate transcription.
-
-## NVIDIA GPU
-
-GPU mode requires a compatible NVIDIA GPU and driver on the host plus NVIDIA Container Toolkit configured for Docker. Start with both Compose files:
-
-```bash
-docker compose -f compose.yaml -f compose.gpu.yaml up --build
-docker compose -f compose.yaml -f compose.gpu.yaml logs app
-```
-
-The overlay requests all available GPUs. With the default `DEVICE=auto`, the application selects CUDA when `torch.cuda.is_available()` is true during startup and selects CPU when it is false. This is a one-time choice: a later CUDA, model-loading, or transcription failure does not retry the job on CPU. Setting `DEVICE=cpu` always selects CPU. Setting `DEVICE=cuda` turns CUDA being unavailable at startup into an error instead of falling back.
-
-When using a `compose.override.yaml` for custom settings in GPU mode, append `-f compose.override.yaml` after the two files in each command so that the custom environment is merged last.
-
-Check the selected device with:
-
-```bash
-curl --fail http://127.0.0.1:8000/health
-docker compose -f compose.yaml -f compose.gpu.yaml exec app python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'cpu')"
-```
 
 ## Model Cache
 
@@ -146,13 +123,9 @@ curl --fail http://127.0.0.1:8000/health
 
 Check for startup configuration errors and confirm nothing else is using local port 8000. A healthy response is JSON containing `"status":"ok"` and the resolved `"device"`.
 
-**Startup says `DEVICE=cuda` was requested but CUDA is unavailable**
-
-Confirm the NVIDIA driver and NVIDIA Container Toolkit work for Docker, use the GPU Compose overlay, and inspect the PyTorch probe in [NVIDIA GPU](#nvidia-gpu). Restore `DEVICE=auto` to select CPU only when PyTorch reports CUDA unavailable at startup, or use `DEVICE=cpu` deliberately.
-
 **Startup rejects a language or compute type**
 
-Use a language code shown in the WhisperX-backed list. For a compute-type error, choose one of the supported values printed in the startup message for the resolved CPU or CUDA device, update `CPU_COMPUTE_TYPE` or `CUDA_COMPUTE_TYPE`, and recreate the service.
+Use a language code shown in the WhisperX-backed list. For a compute-type error, choose one of the supported values printed in the startup message for the CPU device, update `COMPUTE_TYPE`, and recreate the service.
 
 **A job appears stuck at model loading**
 
@@ -160,7 +133,7 @@ First use can download large transcription or alignment weights. Follow logs wit
 
 **Transcription is very slow or runs out of memory**
 
-CPU processing can be much slower than media duration. Choose a smaller model and reduce `CPU_BATCH_SIZE` or `CUDA_BATCH_SIZE`. For GPU memory or other later CUDA/model failures, check whether health reports `cuda`. `DEVICE=auto` does not retry a failed CUDA job on CPU; set `DEVICE=cpu` and recreate the service to force a CPU retry, or correct the GPU problem before resubmitting.
+CPU processing can be much slower than media duration. Choose a smaller model and reduce `BATCH_SIZE` if memory is constrained.
 
 **A YouTube URL is rejected or cannot download**
 
@@ -189,7 +162,7 @@ docker compose logs --tail=100 app
 curl --fail http://127.0.0.1:8000/health
 ```
 
-Confirm the service becomes healthy, health reports CPU unless a GPU was explicitly exposed, and startup logs contain no model download before any job is submitted.
+Confirm the service becomes healthy, health reports `cpu`, and startup logs contain no model download before any job is submitted.
 
 ### Upload and browser behavior
 
@@ -217,17 +190,6 @@ docker compose logs --since=10m app
 ```
 
 Confirm the cache contains weight files, the second job reuses the ASR model instead of downloading it again, and TXT/SRT actions work for the YouTube result.
-
-### GPU mode, when compatible hardware is available
-
-```bash
-docker compose down
-docker compose -f compose.yaml -f compose.gpu.yaml up -d
-docker compose -f compose.yaml -f compose.gpu.yaml exec app python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'cpu')"
-curl --fail http://127.0.0.1:8000/health
-```
-
-On a configured NVIDIA host, confirm the probe prints `True` and the GPU name and health reports `cuda`.
 
 ### Stop without deleting the cache
 

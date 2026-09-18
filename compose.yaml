@@ -10,7 +10,6 @@ services:
       DEFAULT_MODEL: "small"
       DEFAULT_LANGUAGE: "pt"
       MODEL_CACHE_DIR: "/models"
-      DEVICE: "auto"
     volumes:
       - whisper-model-cache:/models
     healthcheck:

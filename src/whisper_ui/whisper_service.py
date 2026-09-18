@@ -3,9 +3,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
-import torch
-import whisperx
 import ctranslate2
+import whisperx
 from faster_whisper import download_model
 from huggingface_hub.errors import LocalEntryNotFoundError
 from whisperx.utils import LANGUAGES
@@ -34,18 +33,8 @@ class WhisperService:
             raise ConfigError(
                 "DEFAULT_LANGUAGE must be a language code supported by WhisperX."
             )
-        if settings.device == "cuda" and not torch.cuda.is_available():
-            raise ConfigError("DEVICE=cuda was requested but CUDA is unavailable.")
-        self.device = (
-            settings.device
-            if settings.device != "auto"
-            else ("cuda" if torch.cuda.is_available() else "cpu")
-        )
-        self.compute_type = (
-            settings.cuda_compute_type
-            if self.device == "cuda"
-            else settings.cpu_compute_type
-        )
+        self.device = "cpu"
+        self.compute_type = settings.compute_type
         try:
             supported_compute_types = ctranslate2.get_supported_compute_types(
                 self.device
@@ -55,21 +44,12 @@ class WhisperService:
                 f"Could not query CTranslate2 compute types for {self.device}."
             ) from error
         if self.compute_type not in supported_compute_types:
-            setting_name = (
-                "CUDA_COMPUTE_TYPE"
-                if self.device == "cuda"
-                else "CPU_COMPUTE_TYPE"
-            )
             supported = ", ".join(sorted(supported_compute_types))
             raise ConfigError(
-                f"{setting_name}={self.compute_type!r} is unsupported for "
+                f"COMPUTE_TYPE={self.compute_type!r} is unsupported for "
                 f"{self.device}; choose one of: {supported}."
             )
-        self.batch_size = (
-            settings.cuda_batch_size
-            if self.device == "cuda"
-            else settings.cpu_batch_size
-        )
+        self.batch_size = settings.batch_size
 
         for cache_name in ("whisper", "alignment", "huggingface", "torch"):
             (settings.model_cache_dir / cache_name).mkdir(parents=True, exist_ok=True)
@@ -92,8 +72,6 @@ class WhisperService:
         if old_model is not None:
             del old_model
         gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
 
         activity_log(self._model_status_message(model_name))
         model = whisperx.load_model(
@@ -117,7 +95,7 @@ class WhisperService:
             return (
                 f"Downloading {model_name} model because it is not in the local cache."
             )
-        except Exception:
+        except Exception:  # noqa: BLE001 - cache probing must not block model loading
             logger.warning("Could not determine whether model %s is cached", model_name)
             return f"Loading {model_name} transcription model."
         return f"Loading {model_name} model from cache."
@@ -181,8 +159,6 @@ class WhisperService:
             if align_model is not None:
                 del align_model
             gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
 
         return TranscriptResult(
             segments=segments,

@@ -7,6 +7,7 @@ services:
       MAX_UPLOAD_MB: "500"
       MAX_MEDIA_DURATION_SECONDS: "10800"
       RESULT_RETENTION_MINUTES: "60"
+      ALLOWED_HOSTS: "${ALLOWED_HOSTS:-localhost,127.0.0.1,::1}"
       DEFAULT_MODEL: "small"
       DEFAULT_LANGUAGE: "pt"
       MODEL_CACHE_DIR: "/models"

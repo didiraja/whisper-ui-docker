@@ -80,11 +80,12 @@ class LocalRequestGuardMiddleware:
 
         headers = Headers(scope=scope)
         request_authority = _authority(headers.get("host", ""), scope.get("scheme", "http"))
-        if request_authority is None or request_authority[0] not in LOCAL_HOSTS:
+        settings = self.settings_provider()
+        if request_authority is None or request_authority[0] not in settings.allowed_hostnames:
             response = _error_response(
                 400,
                 "invalid_host",
-                "Use localhost or 127.0.0.1 to access this app.",
+                "Use a configured application host to access this app.",
             )
             await response(scope, receive, send)
             return
@@ -111,7 +112,6 @@ class LocalRequestGuardMiddleware:
             await response(scope, receive, send)
             return
 
-        settings = self.settings_provider()
         request_limit = settings.max_upload_bytes + MULTIPART_OVERHEAD_BYTES
         content_length = headers.get("content-length")
         if content_length is not None:

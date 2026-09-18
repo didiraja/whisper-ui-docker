@@ -47,6 +47,7 @@ services:
   app:
     environment:
       MAX_UPLOAD_MB: "250"
+      ALLOWED_HOSTS: "app.example.com,localhost,127.0.0.1,::1"
       DEFAULT_MODEL: "tiny"
       COMPUTE_TYPE: "int8"
 ```
@@ -64,6 +65,7 @@ Every application setting is listed below. Positive numeric settings reject zero
 | `MAX_UPLOAD_MB` | `500` | MiB (`value × 1024 × 1024` bytes; shown as MB in the UI) | Maximum uploaded MP3/WAV size, enforced while streaming the request to disk. |
 | `MAX_MEDIA_DURATION_SECONDS` | `10800` | seconds (3 hours) | Maximum probed media duration. Applied to uploads and both YouTube metadata, when present, and the downloaded media. |
 | `RESULT_RETENTION_MINUTES` | `60` | minutes | Time a completed or failed current job remains available before it expires. A newer job removes a prior terminal job immediately. |
+| `ALLOWED_HOSTS` | `localhost,127.0.0.1,::1` | comma-separated hostnames or IP addresses | Hosts accepted in the HTTP `Host` header. Add the VPS domain or IP for a reverse-proxy or direct VPS deployment. Ports are ignored. |
 | `DEFAULT_MODEL` | `small` | `tiny`, `base`, `small`, `medium`, or `large-v3` | Model initially selected in the page. |
 | `DEFAULT_LANGUAGE` | `pt` | WhisperX language code | Language initially selected in the page; `pt` is displayed as Portuguese (Brazil). Users may select Auto-detect per job. |
 | `MODEL_CACHE_DIR` | `/models` | container directory | Root the app passes directly to WhisperX for ASR (`whisper/`) and alignment (`alignment/`) caches. The container's auxiliary Hugging Face/Torch cache variables and Compose volume target are configured separately. |
@@ -100,7 +102,7 @@ docker volume rm whisper-ui_whisper-model-cache
 - Uploads are limited to filenames ending in `.mp3` or `.wav` (case-insensitive). Renaming another format is not enough: FFprobe must find readable media with an audio stream and a valid duration.
 - Remote input is restricted to one HTTP(S) YouTube video URL. Playlists, channels, searches, arbitrary remote hosts, live, private, login-required, and age-restricted videos are rejected.
 - The defaults allow up to 500 MiB per upload and 10,800 seconds (3 hours) per media item. Before multipart parsing, the job endpoint caps the request stream at the file limit plus 1 MiB of bounded form overhead; file persistence separately enforces the exact configured byte limit. YouTube duration is checked before download when metadata is available and always checked on the downloaded file.
-- Requests must use a local `Host` (`localhost`, `127.0.0.1`, or IPv6 loopback). Cross-site browser job submissions are rejected using `Origin` and `Sec-Fetch-Site`; command-line clients without `Origin` remain supported.
+- Requests must use a host listed in `ALLOWED_HOSTS`; the default remains local-only (`localhost`, `127.0.0.1`, or IPv6 loopback). Cross-site browser job submissions are rejected using `Origin` and `Sec-Fetch-Site`; command-line clients without `Origin` remain supported.
 - Uvicorn listens on `0.0.0.0:8000` inside the container so Docker can reach it. The supplied Compose file publishes that container port only as `127.0.0.1:8000` on the host. The app has no accounts or authentication and is intended for one trusted local user; do not publish it on a public host interface without adding appropriate access controls.
 - Uploads and downloaded source media are held inside the container's job directory. On successful completion, source and intermediate media are removed and only TXT/SRT results remain. Failed-job payloads are removed. Terminal job data expires after 60 minutes by default and is removed on a later cleanup pass.
 - Job state is only in application memory. Refreshing the page can recover it while the process lives, but restarting or replacing the container loses the current job state and access to its results. Container replacement also removes its ephemeral job files. The separate model-cache volume survives.

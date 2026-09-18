@@ -40,7 +40,6 @@ _PIPELINE_STAGES = {
     JobStage.FORMATTING,
 }
 _STAGE_LOG_MESSAGES = {
-    JobStage.LOADING_MODEL: "Loading the transcription model.",
     JobStage.TRANSCRIBING: "Model ready; transcription started.",
     JobStage.ALIGNING: "Transcription finished; aligning timestamps.",
     JobStage.FORMATTING: "Preparing output files.",
@@ -252,9 +251,17 @@ class JobManager:
                         if record.pipeline_started_at is None:
                             record.pipeline_started_at = now
                         record.stage_started_at = now
-                        self._append_log_line(
-                            record, _STAGE_LOG_MESSAGES[stage], now=now
-                        )
+                        message = _STAGE_LOG_MESSAGES.get(stage)
+                        if message is not None:
+                            self._append_log_line(record, message, now=now)
+
+    def _append_activity_log(self, job_id: str, message: str) -> None:
+        with self._lock:
+            if self._current is None or self._current.id != job_id:
+                return
+            if self._current.state != JobState.RUNNING:
+                return
+            self._append_log_line(self._current, message)
 
     def _set_stage_progress(
         self, job_id: str, stage: JobStage, percent: float
@@ -346,6 +353,9 @@ class JobManager:
             def stage_progress(stage: JobStage, percent: float) -> None:
                 self._set_stage_progress(job_id, stage, percent)
 
+            def activity_log(message: str) -> None:
+                self._append_activity_log(job_id, message)
+
             source = request.source_path
             if request.source_kind == "youtube":
                 if not request.source_url or not request.source_url.strip():
@@ -376,6 +386,7 @@ class JobManager:
                 request.language,
                 progress,
                 stage_progress,
+                activity_log,
             )
             if transcript.alignment_warning:
                 self._set_alignment_fallback(job_id)

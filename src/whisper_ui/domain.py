@@ -7,6 +7,7 @@ from typing import Any, Literal
 
 ProgressCallback = Callable[["JobStage"], None]
 StageProgressCallback = Callable[["JobStage", float], None]
+ActivityLogCallback = Callable[[str], None]
 SourceKind = Literal["upload", "youtube"]
 
 

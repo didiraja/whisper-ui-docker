@@ -6,10 +6,13 @@ from typing import Any
 import torch
 import whisperx
 import ctranslate2
+from faster_whisper import download_model
+from huggingface_hub.errors import LocalEntryNotFoundError
 from whisperx.utils import LANGUAGES
 
 from whisper_ui.config import MODELS, Settings
 from whisper_ui.domain import (
+    ActivityLogCallback,
     JobStage,
     ProgressCallback,
     StageProgressCallback,
@@ -74,10 +77,13 @@ class WhisperService:
         self._model_name: str | None = None
         self._model: Any | None = None
 
-    def _ensure_model(self, model_name: str) -> Any:
+    def _ensure_model(
+        self, model_name: str, activity_log: ActivityLogCallback
+    ) -> Any:
         if model_name not in MODELS:
             raise ValueError(f"model_name must be one of {', '.join(MODELS)}")
         if self._model_name == model_name and self._model is not None:
+            activity_log(f"Using {model_name} model already in memory.")
             return self._model
 
         old_model = self._model
@@ -89,6 +95,7 @@ class WhisperService:
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
+        activity_log(self._model_status_message(model_name))
         model = whisperx.load_model(
             model_name,
             self.device,
@@ -99,6 +106,22 @@ class WhisperService:
         self._model_name = model_name
         return model
 
+    def _model_status_message(self, model_name: str) -> str:
+        try:
+            download_model(
+                model_name,
+                local_files_only=True,
+                cache_dir=str(self.settings.model_cache_dir / "whisper"),
+            )
+        except LocalEntryNotFoundError:
+            return (
+                f"Downloading {model_name} model because it is not in the local cache."
+            )
+        except Exception:
+            logger.warning("Could not determine whether model %s is cached", model_name)
+            return f"Loading {model_name} transcription model."
+        return f"Loading {model_name} model from cache."
+
     def transcribe(
         self,
         audio_path: Path,
@@ -106,9 +129,10 @@ class WhisperService:
         language: str | None,
         progress: ProgressCallback,
         stage_progress: StageProgressCallback,
+        activity_log: ActivityLogCallback,
     ) -> TranscriptResult:
         progress(JobStage.LOADING_MODEL)
-        model = self._ensure_model(model_name)
+        model = self._ensure_model(model_name, activity_log)
         audio = whisperx.load_audio(str(audio_path))
 
         progress(JobStage.TRANSCRIBING)

@@ -22,6 +22,7 @@ const transcript = document.querySelector("#transcript");
 const copyButton = document.querySelector("#copy-transcript");
 const downloadTxt = document.querySelector("#download-txt");
 const downloadSrt = document.querySelector("#download-srt");
+const resetSessionButton = document.querySelector("#reset-session");
 let pollTimer = null;
 let requestGeneration = 0;
 let pollFailures = 0;
@@ -311,6 +312,7 @@ function renderJob(job) {
     transcript.value = job.transcript || "";
     downloadTxt.href = job.downloads.txt;
     downloadSrt.href = job.downloads.srt;
+    resetSessionButton.disabled = false;
     resultPanel.hidden = false;
     setBusy(false);
   } else if (job.state === "failed") {
@@ -364,6 +366,29 @@ async function copyTranscript() {
   }
 }
 
+async function resetSession() {
+  const generation = beginJobFlow();
+  resetSessionButton.disabled = true;
+  clearError();
+  try {
+    await requestJson("/api/jobs/current", { method: "DELETE" });
+    if (!isCurrentFlow(generation)) return;
+    clearResult();
+    clearPipeline();
+    jobPanel.hidden = true;
+    jobWarning.textContent = "";
+    jobWarning.hidden = true;
+    form.reset();
+    resetSessionButton.disabled = false;
+    updateFileSelection();
+    updateSourcePanels();
+  } catch (error) {
+    if (!isCurrentFlow(generation)) return;
+    resetSessionButton.disabled = false;
+    showError(error.message);
+  }
+}
+
 sourceYoutube.addEventListener("change", updateSourcePanels);
 sourceUpload.addEventListener("change", updateSourcePanels);
 audioFile.addEventListener("change", updateFileSelection);
@@ -401,6 +426,7 @@ uploadDropZone.addEventListener("drop", (event) => {
 });
 form.addEventListener("submit", submitJob);
 copyButton.addEventListener("click", copyTranscript);
+resetSessionButton.addEventListener("click", resetSession);
 window.addEventListener("DOMContentLoaded", () => {
   updateSourcePanels();
   const generation = beginJobFlow();

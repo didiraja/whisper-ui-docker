@@ -34,9 +34,9 @@ docker compose down
 2. Choose a model. `tiny` is fastest and least accurate; larger models generally need more memory and time. `small` is the default.
 3. Keep **Portuguese (Brazil)**, select another supported language, or choose **Auto-detect**.
 4. Select **Transcribe**. The form is disabled while the one allowed active job progresses through validation/download and audio preparation. From model loading onward, a four-step tracker shows the current stage, elapsed time, a measured current-stage estimate when enough progress is available, and the latest five activity lines.
-5. When complete, copy the continuous transcript or download UTF-8 plain-text TXT and timestamped SubRip SRT output.
+5. When complete, copy the continuous transcript or download UTF-8 plain-text TXT and timestamped SubRip SRT output. Select **Reset session** when you want to clear the completed job and return to a fresh form.
 
-Only one job can be active. A second submission while a job is accepted or running returns `A transcription is already running.` A page refresh recovers the current job's status or result while the same application process is alive. Temporary polling failures keep the form locked and retry with capped exponential backoff because the server may still own the active job. After a terminal job, starting another removes its results once any download already in progress closes.
+Only one job can be active. A second submission while a job is accepted or running returns `A transcription is already running.` A page refresh recovers the current job's status or result while the same application process is alive. Temporary polling failures keep the form locked and retry with capped exponential backoff because the server may still own the active job. Resetting a completed session removes its result from the current session; starting another job also replaces the prior terminal job once any download already in progress closes.
 
 ## Configuration
 
@@ -172,7 +172,7 @@ With each user-provided speech file, verify:
 2. Submission disables the form and displays changing processing stages.
 3. Completion displays continuous text and **Copy** places the same text on the clipboard.
 4. The TXT file is UTF-8 plain text; the SRT opens with sequential blocks and `HH:MM:SS,mmm --> HH:MM:SS,mmm` timestamps.
-5. Refreshing during a job and after completion restores its status or result.
+5. Refreshing during a job and after completion restores its status or result; selecting **Reset session** clears the result and leaves no current job after refresh.
 6. A second submission from another browser tab while the first is processing returns the busy message.
 7. An unsupported extension and a non-audio file renamed with `.mp3` or `.wav` are both rejected safely.
 

@@ -147,6 +147,12 @@ async def current_job(request: Request) -> Response | dict[str, object]:
     return record.public_snapshot()
 
 
+@router.delete("/api/jobs/current", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_current_job(request: Request) -> Response:
+    _manager(request).reset_current()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.get("/api/jobs/{job_id}")
 async def get_job(request: Request, job_id: str) -> dict[str, object]:
     return _manager(request).get(job_id).public_snapshot()

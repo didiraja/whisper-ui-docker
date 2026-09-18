@@ -186,6 +186,17 @@ class JobManager:
                 return None
             return replace(self._current)
 
+    def reset_current(self) -> None:
+        with self._lock:
+            if self._current is None:
+                return
+            if self._current.state in _ACTIVE:
+                raise BusyError()
+            record = self._current
+            self._retire(record)
+            self._current = None
+            self._retry_retired_directories()
+
     def open_result(
         self, job_id: str, format_name: Literal["txt", "srt"]
     ) -> ResultLease:

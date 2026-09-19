@@ -13,7 +13,6 @@ class Settings(BaseSettings):
     max_upload_mb: int = Field(default=500, gt=0)
     max_media_duration_seconds: int = Field(default=10_800, gt=0)
     result_retention_minutes: int = Field(default=60, gt=0)
-    allowed_hosts: str = "localhost,127.0.0.1,::1"
     default_model: str = "small"
     default_language: str = "pt"
     model_cache_dir: Path = Path("/models")
@@ -25,14 +24,6 @@ class Settings(BaseSettings):
     @property
     def max_upload_bytes(self) -> int:
         return self.max_upload_mb * 1024 * 1024
-
-    @property
-    def allowed_hostnames(self) -> frozenset[str]:
-        return frozenset(
-            hostname.strip().lower().rstrip(".")
-            for hostname in self.allowed_hosts.split(",")
-            if hostname.strip()
-        )
 
     @model_validator(mode="after")
     def validate_defaults(self) -> "Settings":

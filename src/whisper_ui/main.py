@@ -12,7 +12,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from whisper_ui.config import get_settings
 from whisper_ui.errors import AppError
 from whisper_ui.jobs import JobManager
-from whisper_ui.security import LocalRequestGuardMiddleware
+from whisper_ui.security import RequestSizeLimitMiddleware
 from whisper_ui.web import router
 from whisper_ui.whisper_service import WhisperService
 
@@ -46,7 +46,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Whisper UI", lifespan=lifespan)
-app.add_middleware(LocalRequestGuardMiddleware, settings_provider=get_settings)
+app.add_middleware(RequestSizeLimitMiddleware, settings_provider=get_settings)
 INVALID_REQUEST_MESSAGE = "Submit a valid transcription request."
 
 

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from typing import Any
-from urllib.parse import urlsplit
 
 from starlette.datastructures import Headers
 from starlette.responses import JSONResponse
@@ -11,7 +10,6 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from whisper_ui.config import Settings
 
 MULTIPART_OVERHEAD_BYTES = 1024 * 1024
-LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
 
 class RequestBodyTooLarge(Exception):
@@ -25,47 +23,8 @@ def _error_response(status_code: int, code: str, message: str) -> JSONResponse:
     )
 
 
-def _authority(value: str, scheme: str) -> tuple[str, int] | None:
-    try:
-        parsed = urlsplit(f"//{value}")
-        host = (parsed.hostname or "").lower().rstrip(".")
-        port = parsed.port
-    except ValueError:
-        return None
-    if (
-        not host
-        or parsed.username is not None
-        or parsed.password is not None
-        or parsed.path
-        or parsed.query
-        or parsed.fragment
-    ):
-        return None
-    return host, port or (443 if scheme == "https" else 80)
-
-
-def _origin_authority(value: str) -> tuple[str, int] | None:
-    try:
-        parsed = urlsplit(value)
-        host = (parsed.hostname or "").lower().rstrip(".")
-        port = parsed.port
-    except ValueError:
-        return None
-    if (
-        parsed.scheme not in {"http", "https"}
-        or not host
-        or parsed.username is not None
-        or parsed.password is not None
-        or parsed.path not in {"", "/"}
-        or parsed.query
-        or parsed.fragment
-    ):
-        return None
-    return host, port or (443 if parsed.scheme == "https" else 80)
-
-
-class LocalRequestGuardMiddleware:
-    """Restrict local origins and cap the job request before form parsing."""
+class RequestSizeLimitMiddleware:
+    """Cap the job request before form parsing."""
 
     def __init__(
         self, app: ASGIApp, settings_provider: Callable[[], Settings]
@@ -79,37 +38,13 @@ class LocalRequestGuardMiddleware:
             return
 
         headers = Headers(scope=scope)
-        request_authority = _authority(headers.get("host", ""), scope.get("scheme", "http"))
         settings = self.settings_provider()
-        if request_authority is None or request_authority[0] not in settings.allowed_hostnames:
-            response = _error_response(
-                400,
-                "invalid_host",
-                "Use a configured application host to access this app.",
-            )
-            await response(scope, receive, send)
-            return
 
         is_job_submission = (
             scope.get("method") == "POST" and scope.get("path") == "/api/jobs"
         )
         if not is_job_submission:
             await self.app(scope, receive, send)
-            return
-
-        fetch_site = headers.get("sec-fetch-site", "").lower()
-        origin = headers.get("origin")
-        origin_authority = _origin_authority(origin) if origin is not None else None
-        if (
-            fetch_site == "cross-site"
-            or (origin is not None and origin_authority != request_authority)
-        ):
-            response = _error_response(
-                403,
-                "forbidden_request",
-                "Cross-site transcription requests are not allowed.",
-            )
-            await response(scope, receive, send)
             return
 
         request_limit = settings.max_upload_bytes + MULTIPART_OVERHEAD_BYTES

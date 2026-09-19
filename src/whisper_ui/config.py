@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     max_upload_mb: int = Field(default=500, gt=0)
     max_media_duration_seconds: int = Field(default=10_800, gt=0)
     result_retention_minutes: int = Field(default=60, gt=0)
-    default_model: str = "small"
+    default_model: str = "base"
     default_language: str = "pt"
     model_cache_dir: Path = Path("/models")
     jobs_dir: Path = Path("/tmp/whisper-ui")

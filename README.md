@@ -20,7 +20,7 @@ docker compose build
 docker compose up
 ```
 
-Open <http://127.0.0.1:8000> locally, or `http://your-domain-or-vps-ip:8000` from another computer. The VPS firewall and hosting provider must allow inbound TCP port 8000. Portuguese (Brazil) and the `small` model are selected by default. The first job with each transcription model downloads that model's weights, and the first alignment for each language downloads separate alignment weights. CPU transcription can be slow, especially with larger models or long media.
+Open <http://127.0.0.1:8000> locally, or `http://your-domain-or-vps-ip:8000` from another computer. The VPS firewall and hosting provider must allow inbound TCP port 8000. Portuguese (Brazil) and the `base` model are selected by default. The first job with each transcription model downloads that model's weights, and the first alignment for each language downloads separate alignment weights. CPU transcription can be slow, especially with larger models or long media.
 
 Keep the terminal open while using the app. Press Ctrl+C to stop the foreground process, then remove the stopped container and network without removing the model cache:
 
@@ -31,7 +31,7 @@ docker compose down
 ## Using the App
 
 1. Choose **YouTube** and enter one public single-video YouTube URL, or choose **Audio file** and select or drag-and-drop one MP3 or WAV file. The native file chooser remains keyboard accessible.
-2. Choose a model. `tiny` is fastest and least accurate; larger models generally need more memory and time. `small` is the default.
+2. Choose a model. `tiny` is fastest and least accurate; larger models generally need more memory and time. `base` is the default.
 3. Keep **Portuguese (Brazil)**, select another supported language, or choose **Auto-detect**.
 4. Select **Transcribe**. The form is disabled while the one allowed active job progresses through validation/download and audio preparation. From model loading onward, a four-step tracker shows the current stage, elapsed time, a measured current-stage estimate when enough progress is available, and the latest five activity lines.
 5. When complete, copy the continuous transcript or download UTF-8 plain-text TXT and timestamped SubRip SRT output. Select **Reset session** when you want to clear the completed job and return to a fresh form.
@@ -64,7 +64,7 @@ Every application setting is listed below. Positive numeric settings reject zero
 | `MAX_UPLOAD_MB` | `500` | MiB (`value × 1024 × 1024` bytes; shown as MB in the UI) | Maximum uploaded MP3/WAV size, enforced while streaming the request to disk. |
 | `MAX_MEDIA_DURATION_SECONDS` | `10800` | seconds (3 hours) | Maximum probed media duration. Applied to uploads and both YouTube metadata, when present, and the downloaded media. |
 | `RESULT_RETENTION_MINUTES` | `60` | minutes | Time a completed or failed current job remains available before it expires. A newer job removes a prior terminal job immediately. |
-| `DEFAULT_MODEL` | `small` | `tiny`, `base`, `small`, `medium`, or `large-v3` | Model initially selected in the page. |
+| `DEFAULT_MODEL` | `base` | `tiny`, `base`, `small`, `medium`, or `large-v3` | Model initially selected in the page. |
 | `DEFAULT_LANGUAGE` | `pt` | WhisperX language code | Language initially selected in the page; `pt` is displayed as Portuguese (Brazil). Users may select Auto-detect per job. |
 | `MODEL_CACHE_DIR` | `/models` | container directory | Root the app passes directly to WhisperX for ASR (`whisper/`) and alignment (`alignment/`) caches. The container's auxiliary Hugging Face/Torch cache variables and Compose volume target are configured separately. |
 | `JOBS_DIR` | `/tmp/whisper-ui` | container directory | Ephemeral working directory for the one current job's upload/download and results. It is not host-mounted by the supplied Compose file. |
@@ -168,7 +168,7 @@ Confirm the service becomes healthy, health reports `cpu`, and startup logs cont
 
 With each user-provided speech file, verify:
 
-1. Portuguese (Brazil) and `small` are initially selected and Auto-detect can be selected.
+1. Portuguese (Brazil) and `base` are initially selected and Auto-detect can be selected.
 2. Submission disables the form and displays changing processing stages.
 3. Completion displays continuous text and **Copy** places the same text on the clipboard.
 4. The TXT file is UTF-8 plain text; the SRT opens with sequential blocks and `HH:MM:SS,mmm --> HH:MM:SS,mmm` timestamps.
